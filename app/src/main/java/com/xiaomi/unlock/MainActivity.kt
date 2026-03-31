@@ -60,7 +60,6 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun UnlockScreen(viewModel: UnlockViewModel) {
     val listState = rememberLazyListState()
-    val coroutineScope = rememberCoroutineScope()
 
     // Auto-scroll to bottom when logs update
     LaunchedEffect(viewModel.logs.size) {

@@ -20,6 +20,7 @@ import java.net.InetAddress
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.time.Duration
 import java.util.TimeZone
 import kotlin.math.max
 
@@ -223,7 +224,7 @@ class UnlockViewModel : ViewModel() {
     private fun getNtpOffset(): Long {
         return try {
             val ntpClient = NTPUDPClient()
-            ntpClient.defaultTimeout = 5000
+            ntpClient.setDefaultTimeout(Duration.ofMillis(5000))
             ntpClient.open()
             val info = ntpClient.getTime(InetAddress.getByName(ntpServer))
             info.computeDetails()
