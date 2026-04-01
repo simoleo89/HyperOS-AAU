@@ -150,6 +150,18 @@ fun UnlockScreen(viewModel: UnlockViewModel) {
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        // --- Wave Indicators ---
+        if (viewModel.waves.isNotEmpty()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                viewModel.waves.forEach { wave ->
+                    WaveCard(wave)
+                }
+            }
+        }
+
         // --- Log Console ---
         Box(
             modifier = Modifier
@@ -193,6 +205,43 @@ fun StatusCard(title: String, value: String) {
             Text(text = title, fontSize = 12.sp, color = TextGray)
             Spacer(modifier = Modifier.height(8.dp))
             Text(text = value, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        }
+    }
+}
+
+@Composable
+fun WaveCard(wave: WaveStatus) {
+    val color = when (wave.state) {
+        WaveState.IDLE -> SurfaceColor
+        WaveState.SENDING -> Color(0xFFE6A23C) // Yellow
+        WaveState.SUCCESS -> Color(0xFF67C23A) // Green
+        WaveState.FULL -> Color(0xFFF56C6C)    // Red
+        WaveState.ERROR -> Color(0xFF909399)   // Gray
+    }
+    
+    val textColor = if (wave.state == WaveState.IDLE) TextGray else Color.White
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = color),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        modifier = Modifier
+            .width(80.dp)
+            .height(65.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(4.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(text = wave.offset, fontSize = 11.sp, color = textColor)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = wave.resultText, 
+                fontSize = 10.sp, 
+                fontWeight = FontWeight.Bold, 
+                color = textColor, 
+                textAlign = TextAlign.Center
+            )
         }
     }
 }

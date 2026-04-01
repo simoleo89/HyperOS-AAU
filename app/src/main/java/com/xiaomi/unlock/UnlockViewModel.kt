@@ -34,6 +34,7 @@ class UnlockViewModel : ViewModel() {
     var countdownText by mutableStateOf("Ready")
     
     val logs = mutableStateListOf<String>()
+    val waves = mutableStateListOf<WaveStatus>()
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
@@ -135,6 +136,14 @@ class UnlockViewModel : ViewModel() {
             // Brackets: 4 waves sequentially spread across [-60ms, -20ms, +20ms, +60ms]
             val wave1SendTimeUtcMs = baseSendTimeUtcMs - 60L
             
+            withContext(Dispatchers.Main) {
+                waves.clear()
+                waves.add(WaveStatus(1, "-60ms"))
+                waves.add(WaveStatus(2, "-20ms"))
+                waves.add(WaveStatus(3, "+20ms"))
+                waves.add(WaveStatus(4, "+60ms"))
+            }
+            
             // Wait exactly for Wave 1
             while (isRunning) {
                 val nowAccurate = System.currentTimeMillis() + (ntpOffsetMs ?: 0L)
@@ -160,6 +169,7 @@ class UnlockViewModel : ViewModel() {
             launch(Dispatchers.IO) {
                 val ts = SimpleDateFormat("HH:mm:ss.SSS", Locale.US).apply { timeZone = beijingTz }.format(Date(System.currentTimeMillis() + (ntpOffsetMs ?: 0L)))
                 log("[Spam 1] Launched at $ts CST (-60ms bracket)")
+                withContext(Dispatchers.Main) { if (waves.isNotEmpty()) waves[0].state = WaveState.SENDING }
                 sendWave(1, 0)
             }
             
@@ -168,6 +178,7 @@ class UnlockViewModel : ViewModel() {
             launch(Dispatchers.IO) {
                 val ts = SimpleDateFormat("HH:mm:ss.SSS", Locale.US).apply { timeZone = beijingTz }.format(Date(System.currentTimeMillis() + (ntpOffsetMs ?: 0L)))
                 log("[Spam 2] Launched at $ts CST (-20ms bracket)")
+                withContext(Dispatchers.Main) { if (waves.size > 1) waves[1].state = WaveState.SENDING }
                 sendWave(2, 0)
             }
             
@@ -176,6 +187,7 @@ class UnlockViewModel : ViewModel() {
             launch(Dispatchers.IO) {
                 val ts = SimpleDateFormat("HH:mm:ss.SSS", Locale.US).apply { timeZone = beijingTz }.format(Date(System.currentTimeMillis() + (ntpOffsetMs ?: 0L)))
                 log("[Spam 3] Launched at $ts CST (+20ms bracket)")
+                withContext(Dispatchers.Main) { if (waves.size > 2) waves[2].state = WaveState.SENDING }
                 sendWave(3, 0)
             }
             
@@ -184,6 +196,7 @@ class UnlockViewModel : ViewModel() {
             launch(Dispatchers.IO) {
                 val ts = SimpleDateFormat("HH:mm:ss.SSS", Locale.US).apply { timeZone = beijingTz }.format(Date(System.currentTimeMillis() + (ntpOffsetMs ?: 0L)))
                 log("[Spam 4] Launched at $ts CST (+60ms bracket)")
+                withContext(Dispatchers.Main) { if (waves.size > 3) waves[3].state = WaveState.SENDING }
                 sendWave(4, 0)
             }
             
@@ -282,6 +295,7 @@ class UnlockViewModel : ViewModel() {
 
     private suspend fun sendWave(waveId: Int, delayMs: Long) {
         if (delayMs > 0) delay(delayMs)
+        val waveIndex = waveId - 1
         try {
             val reqBody = "{\"is_retry\":false}".toRequestBody("application/json; charset=utf-8".toMediaType())
             val req = buildHeaders(Request.Builder().url(unlockUrl).post(reqBody)).build()
@@ -297,12 +311,33 @@ class UnlockViewModel : ViewModel() {
                 val result = data?.optInt("apply_result", -1) ?: -1
                 val meaning = getResultMeaning(result)
                 log("[Wave $waveId] $ts CST | HTTP ${resp.code} | $msg | result=$result $meaning")
+                
+                withContext(Dispatchers.Main) {
+                    if (waveIndex in waves.indices) {
+                        if (result == 1 || result == 2) waves[waveIndex].state = WaveState.SUCCESS
+                        else if (result == 6) waves[waveIndex].state = WaveState.FULL
+                        else waves[waveIndex].state = WaveState.ERROR
+                        waves[waveIndex].resultText = "Res $result"
+                    }
+                }
             } catch (e: Exception) {
                 log("[Wave $waveId] $ts CST | HTTP ${resp.code} | ${body.take(100)}...")
+                withContext(Dispatchers.Main) {
+                    if (waveIndex in waves.indices) {
+                        waves[waveIndex].state = WaveState.ERROR
+                        waves[waveIndex].resultText = "HTTP ${resp.code}"
+                    }
+                }
             }
             
         } catch (e: Exception) {
             log("[Wave $waveId] ERROR: ${e.message}")
+            withContext(Dispatchers.Main) {
+                if (waveIndex in waves.indices) {
+                    waves[waveIndex].state = WaveState.ERROR
+                    waves[waveIndex].resultText = "Error"
+                }
+            }
         }
     }
 
@@ -314,4 +349,14 @@ class UnlockViewModel : ViewModel() {
             else -> ""
         }
     }
+}
+
+enum class WaveState { IDLE, SENDING, SUCCESS, FULL, ERROR }
+
+class WaveStatus(
+    val id: Int,
+    val offset: String
+) {
+    var state by mutableStateOf(WaveState.IDLE)
+    var resultText by mutableStateOf("Pending")
 }
