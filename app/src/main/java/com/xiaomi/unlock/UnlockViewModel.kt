@@ -132,8 +132,8 @@ class UnlockViewModel : ViewModel() {
             // We want arrival at 00:00:00, so we send at Base Send Time = target - latency
             val baseSendTimeUtcMs = targetUtcMs - lat
             
-            // Brackets: -50ms before perfection, +50ms after perfection.
-            val wave1SendTimeUtcMs = baseSendTimeUtcMs - 50L
+            // Brackets: 4 waves sequentially spread across [-60ms, -20ms, +20ms, +60ms]
+            val wave1SendTimeUtcMs = baseSendTimeUtcMs - 60L
             
             // Wait exactly for Wave 1
             while (isRunning) {
@@ -156,21 +156,35 @@ class UnlockViewModel : ViewModel() {
             withContext(Dispatchers.Main) { countdownText = "FIRING" }
             log("===")
             
-            // Fire Wave 1 (Bracket -50ms)
+            // Wave 1 (-60ms)
             launch(Dispatchers.IO) {
-                val w1Ts = SimpleDateFormat("HH:mm:ss.SSS", Locale.US).apply { timeZone = beijingTz }.format(Date(System.currentTimeMillis() + (ntpOffsetMs ?: 0L)))
-                log("[Spam 1] Launched at $w1Ts CST (-50ms bracket)")
+                val ts = SimpleDateFormat("HH:mm:ss.SSS", Locale.US).apply { timeZone = beijingTz }.format(Date(System.currentTimeMillis() + (ntpOffsetMs ?: 0L)))
+                log("[Spam 1] Launched at $ts CST (-60ms bracket)")
                 sendWave(1, 0)
             }
             
-            // Wait 100ms exactly for Wave 2
-            delay(100)
-            
-            // Fire Wave 2 (Bracket +50ms)
+            // Wave 2 (-20ms)
+            delay(40)
             launch(Dispatchers.IO) {
-                val w2Ts = SimpleDateFormat("HH:mm:ss.SSS", Locale.US).apply { timeZone = beijingTz }.format(Date(System.currentTimeMillis() + (ntpOffsetMs ?: 0L)))
-                log("[Spam 2] Launched at $w2Ts CST (+50ms bracket)")
+                val ts = SimpleDateFormat("HH:mm:ss.SSS", Locale.US).apply { timeZone = beijingTz }.format(Date(System.currentTimeMillis() + (ntpOffsetMs ?: 0L)))
+                log("[Spam 2] Launched at $ts CST (-20ms bracket)")
                 sendWave(2, 0)
+            }
+            
+            // Wave 3 (+20ms)
+            delay(40)
+            launch(Dispatchers.IO) {
+                val ts = SimpleDateFormat("HH:mm:ss.SSS", Locale.US).apply { timeZone = beijingTz }.format(Date(System.currentTimeMillis() + (ntpOffsetMs ?: 0L)))
+                log("[Spam 3] Launched at $ts CST (+20ms bracket)")
+                sendWave(3, 0)
+            }
+            
+            // Wave 4 (+60ms)
+            delay(40)
+            launch(Dispatchers.IO) {
+                val ts = SimpleDateFormat("HH:mm:ss.SSS", Locale.US).apply { timeZone = beijingTz }.format(Date(System.currentTimeMillis() + (ntpOffsetMs ?: 0L)))
+                log("[Spam 4] Launched at $ts CST (+60ms bracket)")
+                sendWave(4, 0)
             }
             
             delay(2000) // Wait for responses
