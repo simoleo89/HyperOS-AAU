@@ -16,6 +16,7 @@ class CookieLoginActivity : ComponentActivity() {
     companion object {
         const val EXTRA_COOKIE = "extracted_cookie"
 
+        // Domini Xiaomi da cui estrarre il cookie
         private val XIAOMI_DOMAINS = listOf(
             "https://account.xiaomi.com",
             "https://global.account.xiaomi.com",
@@ -23,6 +24,7 @@ class CookieLoginActivity : ComponentActivity() {
             "https://sgp-api.buy.mi.com"
         )
 
+        // URL di partenza: pagina unlock globale Xiaomi Community
         private const val START_URL =
             "https://c.mi.com/global/mio/index?page=unlock"
     }
@@ -34,6 +36,7 @@ class CookieLoginActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Layout root
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(Color.parseColor("#141414"))
@@ -43,6 +46,7 @@ class CookieLoginActivity : ComponentActivity() {
             )
         }
 
+        // Barra superiore
         val topBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setBackgroundColor(Color.parseColor("#1E1E1E"))
@@ -71,6 +75,7 @@ class CookieLoginActivity : ComponentActivity() {
         topBar.addView(titleText)
         topBar.addView(btnClose)
 
+        // Hint
         val hintText = TextView(this).apply {
             text = "Effettua il login con il tuo account Xiaomi. Il cookie verrà estratto in automatico al termine."
             setTextColor(Color.parseColor("#AAAAAA"))
@@ -79,6 +84,7 @@ class CookieLoginActivity : ComponentActivity() {
             setBackgroundColor(Color.parseColor("#1A1A1A"))
         }
 
+        // Status bar (mostra feedback durante il login)
         val statusText = TextView(this).apply {
             text = "Caricamento..."
             setTextColor(Color.parseColor("#FF6900"))
@@ -87,6 +93,7 @@ class CookieLoginActivity : ComponentActivity() {
             setBackgroundColor(Color.parseColor("#0D0D0D"))
         }
 
+        // WebView
         webView = WebView(this).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -94,18 +101,22 @@ class CookieLoginActivity : ComponentActivity() {
             )
         }
 
+        // Configurazione WebView
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
             databaseEnabled = true
+            // User-agent mobile Xiaomi Community per evitare redirect a pagine desktop
             userAgentString =
                 "Mozilla/5.0 (Linux; Android 13; 2210132C) AppleWebKit/537.36 " +
                 "(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 MiuiApp/5.4.0"
         }
 
+        // Abilita cookie per tutti i domini
         CookieManager.getInstance().apply {
             setAcceptCookie(true)
             setAcceptThirdPartyCookies(webView, true)
+            // Flush di eventuali cookie vecchi per avere sessione pulita
             removeAllCookies(null)
             flush()
         }
@@ -141,15 +152,26 @@ class CookieLoginActivity : ComponentActivity() {
         webView.loadUrl(START_URL)
     }
 
+    /**
+     * Controlla tutti i domini Xiaomi noti cercando serviceToken o userId nel cookie.
+     * Non appena trovato, restituisce il cookie alla MainActivity senza richiedere
+     * nessuna azione da parte dell'utente.
+     */
     private fun tryExtractCookie() {
         if (cookieAlreadyReturned) return
+
         val cookieMgr = CookieManager.getInstance()
 
         for (domain in XIAOMI_DOMAINS) {
             val raw = cookieMgr.getCookie(domain) ?: continue
+
+            // Il cookie è valido quando contiene almeno serviceToken + userId
             if (raw.contains("serviceToken") && raw.contains("userId")) {
                 cookieAlreadyReturned = true
-                val result = Intent().apply { putExtra(EXTRA_COOKIE, raw) }
+
+                val result = Intent().apply {
+                    putExtra(EXTRA_COOKIE, raw)
+                }
                 setResult(Activity.RESULT_OK, result)
                 finish()
                 return
@@ -158,8 +180,9 @@ class CookieLoginActivity : ComponentActivity() {
     }
 
     override fun onBackPressed() {
-        if (webView.canGoBack()) webView.goBack()
-        else {
+        if (webView.canGoBack()) {
+            webView.goBack()
+        } else {
             setResult(Activity.RESULT_CANCELED)
             super.onBackPressed()
         }
