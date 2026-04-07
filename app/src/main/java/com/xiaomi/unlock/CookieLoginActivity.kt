@@ -24,7 +24,7 @@ class CookieLoginActivity : ComponentActivity() {
         )
 
         private const val START_URL =
-            "https://c.mi.com/global/mio/index?page=unlock"
+            "https://global.account.xiaomi.com/pass/serviceLogin?sid=miui_forum&_locale=en_US"
 
         // Pagine che indicano login completato con successo
         private val POST_LOGIN_URLS = listOf(
