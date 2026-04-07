@@ -5,6 +5,8 @@ import android.app.Activity
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.ViewGroup
 import android.webkit.*
@@ -23,20 +25,31 @@ class CookieLoginActivity : ComponentActivity() {
             "https://sgp-api.buy.mi.com"
         )
 
+        // Pagina login standard Xiaomi — nessun sid specifico
         private const val START_URL =
             "https://account.xiaomi.com/pass/serviceLogin?_locale=en_US&bizDeviceType=0"
 
-        // Pagine che indicano login completato con successo
-        private val POST_LOGIN_URLS = listOf(
-            "c.mi.com/global",
-            "c.mi.com/thread",
-            "c.mi.com/index",
-            "sgp-api.buy.mi.com"
+        // URL che indicano che siamo FUORI dalla pagina di login
+        private val LOGIN_DOMAINS = listOf(
+            "account.xiaomi.com",
+            "global.account.xiaomi.com"
         )
     }
 
     private lateinit var webView: WebView
+    private lateinit var statusText: TextView
     private var cookieAlreadyReturned = false
+
+    // Polling periodico del cookie ogni 500ms dopo ogni pagina caricata
+    private val handler = Handler(Looper.getMainLooper())
+    private val pollRunnable = object : Runnable {
+        override fun run() {
+            if (!cookieAlreadyReturned) {
+                tryExtractCookie()
+                handler.postDelayed(this, 500)
+            }
+        }
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -80,14 +93,14 @@ class CookieLoginActivity : ComponentActivity() {
         topBar.addView(btnClose)
 
         val hintText = TextView(this).apply {
-            text = "Effettua il login completo con il tuo account Xiaomi. Il cookie verrà estratto automaticamente dopo il login."
+            text = "Effettua il login con il tuo account Xiaomi. Il cookie verrà estratto automaticamente."
             setTextColor(Color.parseColor("#AAAAAA"))
             textSize = 12f
             setPadding(24, 12, 24, 12)
             setBackgroundColor(Color.parseColor("#1A1A1A"))
         }
 
-        val statusText = TextView(this).apply {
+        statusText = TextView(this).apply {
             text = "Caricamento..."
             setTextColor(Color.parseColor("#FF6900"))
             textSize = 11f
@@ -122,17 +135,9 @@ class CookieLoginActivity : ComponentActivity() {
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
                 statusText.text = "🌐 $url"
-
-                // Controlla il cookie SOLO dopo che siamo tornati
-                // su una pagina post-login (non sulla pagina di login stessa)
-                val isPostLogin = POST_LOGIN_URLS.any { url.contains(it) }
-                val isLoginPage = url.contains("account.xiaomi.com") ||
-                                  url.contains("login") ||
-                                  url.contains("oauth")
-
-                if (isPostLogin && !isLoginPage) {
-                    tryExtractCookie()
-                }
+                // Forza flush dei cookie e prova estrazione
+                CookieManager.getInstance().flush()
+                tryExtractCookie()
             }
 
             @Deprecated("Deprecated in Java")
@@ -145,6 +150,9 @@ class CookieLoginActivity : ComponentActivity() {
             override fun onProgressChanged(view: WebView, newProgress: Int) {
                 if (newProgress < 100) {
                     statusText.text = "⏳ Caricamento $newProgress%..."
+                } else {
+                    CookieManager.getInstance().flush()
+                    tryExtractCookie()
                 }
             }
         }
@@ -155,6 +163,9 @@ class CookieLoginActivity : ComponentActivity() {
         root.addView(webView)
         setContentView(root)
 
+        // Avvia polling ogni 500ms
+        handler.postDelayed(pollRunnable, 2000)
+
         webView.loadUrl(START_URL)
     }
 
@@ -164,11 +175,17 @@ class CookieLoginActivity : ComponentActivity() {
 
         for (domain in XIAOMI_DOMAINS) {
             val raw = cookieMgr.getCookie(domain) ?: continue
+            // Cerca serviceToken — indica sessione autenticata valida
             if (raw.contains("serviceToken") && raw.contains("userId")) {
                 cookieAlreadyReturned = true
+                handler.removeCallbacks(pollRunnable)
+                statusText.text = "✅ Cookie estratto!"
+
                 val result = Intent().apply { putExtra(EXTRA_COOKIE, raw) }
                 setResult(Activity.RESULT_OK, result)
-                finish()
+
+                // Breve delay per mostrare il messaggio prima di chiudere
+                handler.postDelayed({ finish() }, 800)
                 return
             }
         }
@@ -183,6 +200,7 @@ class CookieLoginActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        handler.removeCallbacks(pollRunnable)
         webView.destroy()
         super.onDestroy()
     }
