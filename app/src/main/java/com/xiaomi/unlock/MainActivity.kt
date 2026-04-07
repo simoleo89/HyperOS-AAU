@@ -9,6 +9,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -24,14 +25,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.text.style.TextAlign
 
-val OrangeMain = Color(0xFFFF6900)
+val OrangeMain    = Color(0xFFFF6900)
 val DarkBackground = Color(0xFF141414)
-val SurfaceColor = Color(0xFF1E1E1E)
-val TextGray = Color(0xFFAAAAAA)
+val SurfaceColor  = Color(0xFF1E1E1E)
+val TextGray      = Color(0xFFAAAAAA)
+val GreenOk       = Color(0xFF67C23A)
+val RedErr        = Color(0xFFF56C6C)
 
 class MainActivity : ComponentActivity() {
     private val viewModel: UnlockViewModel by viewModels()
@@ -41,18 +44,15 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme(
                 colorScheme = darkColorScheme(
-                    primary = OrangeMain,
-                    background = DarkBackground,
-                    surface = SurfaceColor,
-                    onPrimary = Color.White,
-                    onBackground = Color.White,
-                    onSurface = Color.White
+                    primary       = OrangeMain,
+                    background    = DarkBackground,
+                    surface       = SurfaceColor,
+                    onPrimary     = Color.White,
+                    onBackground  = Color.White,
+                    onSurface     = Color.White
                 )
             ) {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
+                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     UnlockScreen(viewModel)
                 }
             }
@@ -62,147 +62,141 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun UnlockScreen(viewModel: UnlockViewModel) {
-    val listState = rememberLazyListState()
-    val context = LocalContext.current
+    val listState  = rememberLazyListState()
+    val context    = LocalContext.current
+    var showHistory by remember { mutableStateOf(false) }
 
-    // Launcher per aprire CookieLoginActivity e ricevere il cookie estratto
     val cookieLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
+        ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            val cookie = result.data?.getStringExtra(CookieLoginActivity.EXTRA_COOKIE)
-            if (!cookie.isNullOrBlank()) {
-                viewModel.cookie = cookie
-                Toast.makeText(context, "✅ Cookie estratto con successo!", Toast.LENGTH_LONG).show()
+            val c = result.data?.getStringExtra(CookieLoginActivity.EXTRA_COOKIE)
+            if (!c.isNullOrBlank()) {
+                viewModel.saveCookie(c)
+                Toast.makeText(context, "✅ Cookie estratto e salvato!", Toast.LENGTH_LONG).show()
             } else {
-                Toast.makeText(context, "⚠️ Cookie non trovato, riprova il login.", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "⚠️ Cookie non trovato, riprova.", Toast.LENGTH_LONG).show()
             }
         }
     }
 
-    // Auto-scroll to bottom when logs update
     LaunchedEffect(viewModel.logs.size) {
-        if (viewModel.logs.isNotEmpty()) {
-            listState.animateScrollToItem(viewModel.logs.size - 1)
-        }
+        if (viewModel.logs.isNotEmpty()) listState.animateScrollToItem(viewModel.logs.size - 1)
+    }
+
+    if (showHistory) {
+        HistoryScreen(viewModel.history) { showHistory = false }
+        return
     }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
+        modifier = Modifier.fillMaxSize().padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // --- Header ---
-        Text(
-            text = "Xiaomi Unlock Automator",
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            color = OrangeMain,
-            modifier = Modifier.padding(bottom = 24.dp, top = 24.dp)
-        )
-
-        // --- Status Cards Section ---
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            StatusCard(
-                title = "Latency",
-                value = viewModel.latencyMs?.let { "${it}ms" } ?: "--"
+        // Header
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "Xiaomi Unlock Automator",
+                fontSize = 20.sp, fontWeight = FontWeight.Bold, color = OrangeMain,
+                modifier = Modifier.weight(1f).padding(top = 20.dp, bottom = 20.dp)
             )
-            StatusCard(
-                title = "NTP Offset",
-                value = viewModel.ntpOffsetMs?.let { "${it}ms" } ?: "--"
-            )
+            TextButton(onClick = { showHistory = true }) {
+                Text("📋 Log", color = TextGray, fontSize = 12.sp)
+            }
         }
-        
-        Spacer(modifier = Modifier.height(24.dp))
 
-        // --- Countdown Display ---
+        // Status cards
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            StatusCard("Latency",    viewModel.latencyMs?.let { "${it}ms" } ?: "--")
+            StatusCard("NTP Offset", viewModel.ntpOffsetMs?.let { "${it}ms" } ?: "--")
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        // Countdown
         Text(
-            text = viewModel.countdownText,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
+            viewModel.countdownText,
+            fontSize = 15.sp, fontWeight = FontWeight.Bold,
             color = if (viewModel.isRunning) OrangeMain else Color.White,
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(bottom = 24.dp).fillMaxWidth()
+            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
         )
 
-        // --- Cookie Input ---
+        // Cookie input con indicatore validità
+        val cookieBorder = when (viewModel.cookieValid) {
+            true  -> GreenOk
+            false -> RedErr
+            null  -> TextGray
+        }
+        val cookieLabel = when (viewModel.cookieValid) {
+            true  -> "Cookie ✅ Valido"
+            false -> "Cookie ❌ Scaduto"
+            null  -> "Cookie String"
+        }
         OutlinedTextField(
             value = viewModel.cookie,
-            onValueChange = { viewModel.cookie = it },
-            label = { Text("Cookie String") },
-            placeholder = { Text("Paste Cookie Here...") },
+            onValueChange = { viewModel.saveCookie(it) },
+            label = { Text(cookieLabel) },
+            placeholder = { Text("Incolla o usa il login in-app...") },
             modifier = Modifier.fillMaxWidth(),
             enabled = !viewModel.isRunning,
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = OrangeMain,
-                focusedLabelColor = OrangeMain,
-                cursorColor = OrangeMain
+                focusedBorderColor   = OrangeMain,
+                unfocusedBorderColor = cookieBorder,
+                focusedLabelColor    = OrangeMain,
+                unfocusedLabelColor  = cookieBorder,
+                cursorColor          = OrangeMain
             )
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(Modifier.height(8.dp))
 
-        // --- Pulsante Ottieni Cookie via WebView ---
+        // Pulsante login in-app
         OutlinedButton(
-            onClick = {
-                val intent = Intent(context, CookieLoginActivity::class.java)
-                cookieLauncher.launch(intent)
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp),
+            onClick = { cookieLauncher.launch(Intent(context, CookieLoginActivity::class.java)) },
+            modifier = Modifier.fillMaxWidth().height(46.dp),
             enabled = !viewModel.isRunning,
             colors = ButtonDefaults.outlinedButtonColors(contentColor = OrangeMain),
-            border = androidx.compose.foundation.BorderStroke(1.dp, OrangeMain)
+            border = BorderStroke(1.dp, OrangeMain)
         ) {
-            Text("🔑  Ottieni Cookie (Login in-app)", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Text("🔑  Ottieni Cookie (Login in-app)", fontSize = 14.sp)
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(Modifier.height(10.dp))
 
-        // --- Action Buttons ---
+        // Start / Stop
         if (!viewModel.isRunning) {
             Button(
                 onClick = { viewModel.startProcess() },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
+                modifier = Modifier.fillMaxWidth().height(54.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = OrangeMain)
             ) {
-                Text("Verify & Start Process", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text("▶  Avvia Processo", fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
         } else {
             Button(
                 onClick = { viewModel.stopProcess() },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                modifier = Modifier.fillMaxWidth().height(54.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = RedErr)
             ) {
-                Text("Abort Process", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text("⏹  Interrompi", fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(Modifier.height(16.dp))
 
-        // --- Wave Indicators ---
+        // Wave indicators
         if (viewModel.waves.isNotEmpty()) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                Modifier.fillMaxWidth().padding(bottom = 12.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                viewModel.waves.forEach { wave ->
-                    WaveCard(wave)
-                }
+                viewModel.waves.forEach { WaveCard(it) }
             }
         }
 
-        // --- Log Console ---
+        // Log console
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -212,14 +206,58 @@ fun UnlockScreen(viewModel: UnlockViewModel) {
                 .padding(8.dp)
         ) {
             LazyColumn(state = listState) {
-                items(viewModel.logs) { logMsg ->
+                items(viewModel.logs) { msg ->
                     Text(
-                        text = logMsg,
-                        color = Color(0xFF00FF00), // Terminal green
-                        fontSize = 12.sp,
+                        msg,
+                        color = when {
+                            msg.contains("✅") -> GreenOk
+                            msg.contains("❌") || msg.contains("[!]") -> RedErr
+                            msg.contains("🔥") -> OrangeMain
+                            else -> Color(0xFF00FF00)
+                        },
+                        fontSize = 11.sp,
                         fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.padding(vertical = 2.dp)
+                        modifier = Modifier.padding(vertical = 1.dp)
                     )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun HistoryScreen(history: List<HistoryEntry>, onBack: () -> Unit) {
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onBack) { Text("← Indietro", color = OrangeMain) }
+            Text("Storico Tentativi", fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                color = Color.White, modifier = Modifier.padding(start = 8.dp, top = 20.dp, bottom = 20.dp))
+        }
+        if (history.isEmpty()) {
+            Text("Nessun tentativo ancora.", color = TextGray, modifier = Modifier.padding(top = 32.dp).fillMaxWidth(),
+                textAlign = TextAlign.Center)
+        } else {
+            LazyColumn {
+                items(history) { entry ->
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = SurfaceColor),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                    ) {
+                        Column(Modifier.padding(12.dp)) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(entry.date, fontSize = 12.sp, color = TextGray)
+                                Text(entry.result, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                                    color = when {
+                                        entry.result.contains("✅") -> GreenOk
+                                        entry.result.contains("❌") -> RedErr
+                                        else -> Color(0xFFE6A23C)
+                                    })
+                            }
+                            Text("Wave: ${entry.waves}", fontSize = 10.sp,
+                                color = TextGray, fontFamily = FontFamily.Monospace,
+                                modifier = Modifier.padding(top = 4.dp))
+                        }
+                    }
                 }
             }
         }
@@ -230,21 +268,17 @@ fun UnlockScreen(viewModel: UnlockViewModel) {
 fun StatusCard(title: String, value: String) {
     Card(
         colors = CardDefaults.cardColors(containerColor = SurfaceColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        modifier = Modifier
-            .width(150.dp)
-            .height(80.dp)
+        elevation = CardDefaults.cardElevation(4.dp),
+        modifier = Modifier.width(150.dp).height(72.dp)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(8.dp),
+            Modifier.fillMaxSize().padding(8.dp),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(text = title, fontSize = 12.sp, color = TextGray)
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(text = value, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text(title, fontSize = 11.sp, color = TextGray)
+            Spacer(Modifier.height(6.dp))
+            Text(value, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color.White)
         }
     }
 }
@@ -252,36 +286,27 @@ fun StatusCard(title: String, value: String) {
 @Composable
 fun WaveCard(wave: WaveStatus) {
     val color = when (wave.state) {
-        WaveState.IDLE -> SurfaceColor
-        WaveState.SENDING -> Color(0xFFE6A23C) // Yellow
-        WaveState.SUCCESS -> Color(0xFF67C23A) // Green
-        WaveState.FULL -> Color(0xFFF56C6C)    // Red
-        WaveState.ERROR -> Color(0xFF909399)   // Gray
+        WaveState.IDLE    -> SurfaceColor
+        WaveState.SENDING -> Color(0xFFE6A23C)
+        WaveState.SUCCESS -> GreenOk
+        WaveState.FULL    -> RedErr
+        WaveState.ERROR   -> Color(0xFF909399)
     }
-    
-    val textColor = if (wave.state == WaveState.IDLE) TextGray else Color.White
-
     Card(
         colors = CardDefaults.cardColors(containerColor = color),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        modifier = Modifier
-            .width(80.dp)
-            .height(65.dp)
+        elevation = CardDefaults.cardElevation(2.dp),
+        modifier = Modifier.width(52.dp).height(58.dp)
     ) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(4.dp),
+            Modifier.fillMaxSize().padding(3.dp),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(text = wave.offset, fontSize = 11.sp, color = textColor)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = wave.resultText, 
-                fontSize = 10.sp, 
-                fontWeight = FontWeight.Bold, 
-                color = textColor, 
-                textAlign = TextAlign.Center
-            )
+            val tc = if (wave.state == WaveState.IDLE) TextGray else Color.White
+            Text(wave.offset, fontSize = 9.sp, color = tc, textAlign = TextAlign.Center)
+            Spacer(Modifier.height(3.dp))
+            Text(wave.resultText, fontSize = 9.sp, fontWeight = FontWeight.Bold,
+                color = tc, textAlign = TextAlign.Center)
         }
     }
 }
