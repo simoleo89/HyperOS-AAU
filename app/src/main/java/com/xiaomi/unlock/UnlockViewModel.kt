@@ -34,7 +34,6 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
-import kotlin.math.max
 
 data class HistoryEntry(val date: String, val result: String, val waves: String)
 
