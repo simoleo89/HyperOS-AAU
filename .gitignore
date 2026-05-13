@@ -1,0 +1,30 @@
+# Gradle / build
+.gradle/
+build/
+**/build/
+out/
+.cxx/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Android
+local.properties
+captures/
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Signing — never commit credentials or keystores
+*.keystore
+*.jks
+keystore.properties
+release.keystore
+
+# Logs / OS
+*.log
+.DS_Store
+Thumbs.db

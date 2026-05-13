@@ -45,9 +45,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Initialize ViewModel with app context for wake lock and notifications
-        viewModel.init(applicationContext)
-
         // Request notification permission on Android 13+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
@@ -165,7 +162,7 @@ fun UnlockScreen(viewModel: UnlockViewModel) {
                 }
                 Switch(
                     checked = viewModel.caffeineMode,
-                    onCheckedChange = { viewModel.caffeineMode = it },
+                    onCheckedChange = { viewModel.setCaffeineMode(it) },
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = Color.White,
                         checkedTrackColor = OrangeMain,
@@ -191,7 +188,7 @@ fun UnlockScreen(viewModel: UnlockViewModel) {
         // --- Cookie Input ---
         OutlinedTextField(
             value = viewModel.cookie,
-            onValueChange = { viewModel.cookie = it },
+            onValueChange = { viewModel.setCookie(it) },
             label = { Text("Cookie String") },
             placeholder = { Text("Paste Cookie Here...") },
             modifier = Modifier.fillMaxWidth(),
@@ -211,7 +208,7 @@ fun UnlockScreen(viewModel: UnlockViewModel) {
             value = viewModel.maxTriggers,
             onValueChange = { newVal ->
                 if (newVal.isEmpty() || newVal.all { it.isDigit() }) {
-                    viewModel.maxTriggers = newVal
+                    viewModel.setMaxTriggers(newVal)
                 }
             },
             label = { Text("Max Triggers") },

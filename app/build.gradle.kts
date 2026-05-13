@@ -11,26 +11,44 @@ android {
         applicationId = "com.xiaomi.unlock"
         minSdk = 26
         targetSdk = 34
-        versionCode = 3
-        versionName = "1.2.0"
-        
+        versionCode = 4
+        versionName = "1.2.1"
+
         vectorDrawables {
             useSupportLibrary = true
         }
     }
 
+    val keystorePath = System.getenv("KEYSTORE_PATH")
+        ?: (project.findProperty("KEYSTORE_PATH") as String?)
+    val keystorePassword = System.getenv("KEYSTORE_PASSWORD")
+        ?: (project.findProperty("KEYSTORE_PASSWORD") as String?)
+    val keyAlias = System.getenv("KEY_ALIAS")
+        ?: (project.findProperty("KEY_ALIAS") as String?)
+    val keyPassword = System.getenv("KEY_PASSWORD")
+        ?: (project.findProperty("KEY_PASSWORD") as String?)
+    val keystoreFile = keystorePath?.let { file(it) }
+    val canSignRelease = keystoreFile?.exists() == true &&
+        !keystorePassword.isNullOrBlank() &&
+        !keyAlias.isNullOrBlank() &&
+        !keyPassword.isNullOrBlank()
+
     signingConfigs {
-        create("release") {
-            storeFile = file(System.getenv("KEYSTORE_PATH") ?: "release.keystore")
-            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "g@lapate13"
-            keyAlias = System.getenv("KEY_ALIAS") ?: "release"
-            keyPassword = System.getenv("KEY_PASSWORD") ?: "g@lapate13"
+        if (canSignRelease) {
+            create("release") {
+                storeFile = keystoreFile
+                storePassword = keystorePassword
+                this.keyAlias = keyAlias
+                this.keyPassword = keyPassword
+            }
         }
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            if (canSignRelease) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }

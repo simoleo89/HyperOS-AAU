@@ -3,6 +3,7 @@ name: Build & Release APK
 on:
   push:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -29,26 +30,28 @@ jobs:
           key: gradle-${{ hashFiles('**/*.gradle.kts', '**/gradle-wrapper.properties') }}
           restore-keys: gradle-
 
-      - name: Generate release keystore
+      - name: Decode release keystore
+        if: ${{ env.KEYSTORE_BASE64 != '' }}
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
-          keytool -genkeypair \
-            -alias release \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -keystore app/release.keystore \
-            -storepass 'g@lapate13' \
-            -keypass 'g@lapate13' \
-            -dname "CN=HyperOS AAU, OU=Dev, O=Dev, L=Unknown, ST=Unknown, C=US"
+          echo "$KEYSTORE_BASE64" | base64 -d > app/release.keystore
+          echo "KEYSTORE_PATH=app/release.keystore" >> "$GITHUB_ENV"
 
-      - name: Build signed release APK
-        run: chmod +x gradlew && ./gradlew assembleRelease
+      - name: Build release APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease
 
       - name: Extract version name
         id: version
         run: |
           VERSION=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
